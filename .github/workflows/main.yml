@@ -139,11 +139,50 @@ jobs:
           echo "OUTPUT_PATH=$OUTPUT_PATH" >> $GITHUB_ENV
         continue-on-error: true
 
+      - name: Build external module manually (Bazel compat)
+        if: ${{ github.event.inputs.android_version > 13 }}
+        run: |
+          cd android-kernel
+          # 查找 Bazel 产出的内核构建树（包含 vmlinux/Module.symvers 的目录）
+          KERNEL_BUILD_DIR=$(find out/ -name "vmlinux" -exec dirname {} \; 2>/dev/null | head -1 || true)
+          if [ -z "$KERNEL_BUILD_DIR" ]; then
+            KERNEL_BUILD_DIR=$(find out/ -path "*/common" -type d 2>/dev/null | head -1 || true)
+          fi
+          if [ -z "$KERNEL_BUILD_DIR" ]; then
+            # 尝试查找 module.symvers
+            KERNEL_BUILD_DIR=$(find out/ -name "Module.symvers" -exec dirname {} \; 2>/dev/null | head -1 || true)
+          fi
+          echo "Found kernel build dir: $KERNEL_BUILD_DIR"
+          if [ -n "$KERNEL_BUILD_DIR" ]; then
+            # 用内核构建树编译外置模块
+            # 尝试两种路径（相对路径和绝对路径）编译外置模块
+            make -C "$KERNEL_BUILD_DIR" M=../common/drivers/kerneldriver \
+              ARCH=${{ github.event.inputs.target_arch }} \
+              CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 modules 2>&1 || \
+            make -C "$KERNEL_BUILD_DIR" M=$(pwd)/common/drivers/kerneldriver \
+              ARCH=${{ github.event.inputs.target_arch }} \
+              CROSS_COMPILE=aarch64-linux-gnu- LLVM=1 modules 2>&1 || true
+            # 查找生成的 .ko，额外从 kerneldriver 目录找
+            find common/drivers/kerneldriver/ -name "*.ko" -exec cp -v {} ../kerneldriver/ \; 2>/dev/null || true
+            # 也复制一份到 dist 目录供后续 artifacts 收集
+            if [ -f common/drivers/kerneldriver/${{ github.event.inputs.driver_name }} ]; then
+              cp -v common/drivers/kerneldriver/${{ github.event.inputs.driver_name }} ${{ env.OUTPUT_PATH }}/ 2>/dev/null || true
+            fi
+          else
+            echo "WARNING: Could not find kernel build tree, .ko may not be built"
+          fi
+
       - name: Collect build artifacts
         run: |
           mkdir -p artifacts
+          # 先从 kerneldriver 目录复制（手动编译的产物）
+          if [ -f kerneldriver/${{ github.event.inputs.driver_name }} ]; then
+            echo "=== Found manually built .ko in kerneldriver/ ==="
+            cp -v kerneldriver/${{ github.event.inputs.driver_name }} artifacts/
+          fi
+          # 再从 Bazel dist 目录复制
           cd android-kernel/${{ env.OUTPUT_PATH }}
-          # 只复制驱动模块文件
+          # 复制驱动模块文件
           if [ -f "${{ github.event.inputs.driver_name }}" ]; then
             cp -v "${{ github.event.inputs.driver_name }}" ../../../artifacts/
           fi
