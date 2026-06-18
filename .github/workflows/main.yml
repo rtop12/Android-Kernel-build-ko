@@ -73,7 +73,7 @@ jobs:
       - name: Modify Makefile
         run: |
           cd android-kernel
-          echo "obj-y += kerneldriver/" >> common/drivers/Makefile
+          echo "obj-m += kerneldriver/" >> common/drivers/Makefile
 
       - name: Add module to GKI modules list
         if: ${{ github.event.inputs.android_version > 13 }}
