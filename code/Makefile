@@ -1,7 +1,1 @@
- obj-m += Menu.o 
-
-all:
-	make -C $(KERNEL_PATH) M=$(PWD) modules
-
-clean:
-	make -C $(KERNEL_PATH) M=$(PWD) clean
+obj-m += devcfg.o
