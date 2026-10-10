@@ -1,4 +1,4 @@
-obj-m += Menu.o
+ obj-m += mydriver.o 
 
 all:
 	make -C $(KERNEL_PATH) M=$(PWD) modules
